@@ -1,6 +1,7 @@
 #ifndef SERVER_HPP
 #define SERVER_HPP
 
+#include <mutex>
 #include <poll.h>
 #include <stdint.h>
 #include <vector>
@@ -20,8 +21,10 @@ public:
 
 private:
     bool prepare_server_socket(uint16_t port);
+    void accept_clients();
 
     std::vector<pollfd> m_fds;
+    std::mutex m_fds_mutex;
     const int m_server_fd;
 };
 
