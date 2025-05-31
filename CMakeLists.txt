@@ -5,10 +5,12 @@ project(hashd LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(hashd main.cpp)
+add_executable(hashd main.cpp
+    server.hpp server.cpp
+    hasher.hpp hasher.cpp)
 
-include(GNUInstallDirs)
-install(TARGETS hashd
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
+find_package(OpenSSL REQUIRED)
+if(OPENSSL_FOUND)
+  include_directories(${OPENSSL_INCLUDE_DIR})
+  target_link_libraries(hashd OpenSSL::SSL OpenSSL::Crypto)
+endif()

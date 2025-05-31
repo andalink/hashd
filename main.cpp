@@ -1,9 +1,11 @@
-#include <iostream>
+#include "server.hpp"
 
 using namespace std;
 
 int main()
 {
-    cout << "Hello World!" << endl;
+    hashd::Server s;
+    s.run(11011);
+
     return 0;
 }
