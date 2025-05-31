@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(hashd main.cpp
     server.hpp server.cpp
-    hasher.hpp hasher.cpp)
+    hasher.hpp hasher.cpp
+    socket_descriptor.hpp socket_descriptor.cpp
+    epoll_descriptor.hpp epoll_descriptor.cpp)
 
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)

@@ -11,7 +11,7 @@ namespace hashd
 class Hasher
 {
 public:
-    Hasher(std::vector<uint8_t> data, size_t size);
+    Hasher(const std::vector<uint8_t>& data, size_t size);
     std::string to_string();
 
 private:

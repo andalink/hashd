@@ -6,7 +6,7 @@
 
 namespace hashd {
 
-Hasher::Hasher(std::vector<uint8_t> data, size_t size)
+Hasher::Hasher(const std::vector<uint8_t>& data, size_t size)
     : m_hash(SHA256_DIGEST_LENGTH)
 {
     SHA256_CTX sha256;
