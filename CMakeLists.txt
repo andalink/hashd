@@ -9,7 +9,8 @@ add_executable(hashd main.cpp
     server.hpp server.cpp
     hasher.hpp hasher.cpp
     socket_descriptor.hpp socket_descriptor.cpp
-    epoll_descriptor.hpp epoll_descriptor.cpp)
+    epoll_descriptor.hpp epoll_descriptor.cpp
+    clients_handler.hpp clients_handler.cpp)
 
 install(TARGETS hashd DESTINATION ${CMAKE_SOURCE_DIR}/bin)
 

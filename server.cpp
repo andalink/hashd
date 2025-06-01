@@ -1,7 +1,8 @@
 #include "server.hpp"
-#include "hasher.hpp"
 
+#include <algorithm>
 #include <iostream>
+#include <map>
 #include <sys/socket.h>
 #include <thread>
 #include <unistd.h>
@@ -9,8 +10,8 @@
 namespace
 {
 
-constexpr uint16_t POLL_TIMEOUT = 500;
-constexpr size_t BUFFER_SIZE = 1024;
+constexpr uint16_t C_POLL_TIMEOUT = 500;
+constexpr uint8_t C_WORKER_COUNT = 4;
 
 } // unnamed
 
@@ -19,75 +20,98 @@ namespace hashd
 
 void Server::run(uint16_t port)
 {
+    if (m_epoll_fd < 0 || m_server_fd < 0) {
+        std::cerr << "unable to create descriptor" << std::endl;
+        return;
+    }
+
     if (!m_server_fd.configure_server(port)) {
         return;
     }
 
-    std::thread accept_clients_thread(&Server::accept_clients, this);
-    std::vector<uint8_t> buff(BUFFER_SIZE);
-
-    while(true) {
-        const auto fds = m_epoll_fd.wait(POLL_TIMEOUT);
-
-        for (const auto fd : fds) {
-            while (true) {
-                ssize_t count = read(fd, buff.data(), BUFFER_SIZE);
-
-                if (count == -1) {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        break;
-                    }
-
-                    std::cerr << "error while reading data" << std::endl;
-                    std::lock_guard lock(m_fds_mutex);
-                    m_epoll_fd.remove_watching_fd(fd);
-                    m_fds.erase(fd);
-                    break;
-                }
-                else if (count == 0) {
-                    std::cout << "client disconnected" << std::endl;
-                    std::lock_guard lock(m_fds_mutex);
-                    m_epoll_fd.remove_watching_fd(fd);
-                    m_fds.erase(fd);
-                    break;
-                }
-
-                const auto hash = Hasher(buff, count).to_string();
-                count = send(fd, hash.data(), hash.size(), 0);
-
-                if (count != hash.size()) {
-                    std::cerr << "data send error, disconnecting client" << std::endl;
-                    std::lock_guard lock(m_fds_mutex);
-                    m_epoll_fd.remove_watching_fd(fd);
-                    m_fds.erase(fd);
-                    break;
-                }
-            }
-        }
+    m_epoll_fd.add_watching_fd(m_server_fd);
+    for (uint8_t i = 0; i < C_WORKER_COUNT; ++i) {
+        m_workers.emplace_back(C_POLL_TIMEOUT);
     }
 
-    accept_clients_thread.join();
+    for (auto& handler : m_workers) {
+        if (!handler.run()) {
+            std::cerr << "unable to run worker" << std::endl;
+            return;
+        }
+        m_epoll_fd.add_watching_fd(handler.event_fd());
+    }
+
+    accept_clients();
+
+    for (auto& handler : m_workers) {
+        handler.terminate();
+    }
 }
 
 void Server::accept_clients() {
+    std::multimap<size_t, size_t> clients_queue;
+    for (size_t i = 0; i < m_workers.size(); ++i) {
+        clients_queue.emplace(0u, i);
+    }
+
     while (true) {
-        SocketDescriptor client_fd(accept(m_server_fd, nullptr, nullptr));
+        const auto fds = m_epoll_fd.wait(C_POLL_TIMEOUT);
 
-        if(client_fd < 0) {
-            //std::cerr << "unable to accept connection" << std::endl;
-            continue;
+        for (const auto fd : fds) {
+            if (fd == m_server_fd) {
+                SocketDescriptor client_fd(accept(m_server_fd, nullptr, nullptr));
+
+                if(client_fd < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(C_POLL_TIMEOUT));
+                        continue;
+                    }
+
+                    std::cerr << "unable to accept connection" << std::endl;
+                    continue;
+                }
+
+                if (!client_fd.set_non_blocking()) {
+                    std::cerr << "unable to configure client to non blocking mode" << std::endl;
+                    continue;
+                }
+
+                std::cout << "a new client connected" << std::endl;
+                const auto item = clients_queue.begin();
+                m_workers[item->second].epoll_fd().add_watching_fd(client_fd);
+                m_fds.emplace(client_fd, std::move(client_fd));
+                clients_queue.erase(clients_queue.begin());
+                clients_queue.emplace(item->first + 1, item->second);
+            }
+            else {
+                uint64_t value;
+                read(fd, &value, sizeof(value));
+
+                auto handler = std::find_if(m_workers.begin(), m_workers.end(),
+                    [fd](const auto& h){ return h.event_fd() == fd; });
+
+                if (handler == m_workers.end()) {
+                    std::cerr << "unable to find worker for received event" << std::endl;
+                    continue;
+                }
+
+                const auto disconnected = handler->disconnected();
+                for (const auto fd : disconnected) {
+                    handler->epoll_fd().remove_watching_fd(fd);
+                    m_fds.erase(fd);
+                }
+
+                size_t idx = std::distance(m_workers.begin(), handler);
+                for (auto it = clients_queue.begin(); it != clients_queue.end(); ++it) {
+                    if (it->second == idx) {
+                        size_t count = it->first - disconnected.size();
+                        clients_queue.erase(it);
+                        clients_queue.emplace(count, idx);
+                    }
+                }
+            }
         }
-
-        if (!client_fd.set_non_blocking()) {
-            std::cerr << "unable to configure client to non blocking mode" << std::endl;
-            continue;
-        }
-
-        std::cout << "a new client connected" << std::endl;
-
-        std::lock_guard lock(m_fds_mutex);
-        m_epoll_fd.add_watching_fd(client_fd);
-        m_fds.emplace(client_fd, std::move(client_fd));
     }
 }
 

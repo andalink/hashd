@@ -18,6 +18,21 @@ EpollDescriptor::~EpollDescriptor()
     }
 }
 
+EpollDescriptor::EpollDescriptor(EpollDescriptor&& other)
+    : m_fd(other)
+{
+    other.m_fd = -1;
+}
+
+EpollDescriptor& EpollDescriptor::operator=(EpollDescriptor&& other)
+{
+    if (this != &other) {
+        m_fd = other.m_fd;
+        other.m_fd = -1;
+    }
+    return *this;
+}
+
 bool EpollDescriptor::add_watching_fd(int fd) const
 {
     epoll_event event{};

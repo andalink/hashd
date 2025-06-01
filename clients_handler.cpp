@@ -1,0 +1,119 @@
+#include "clients_handler.hpp"
+#include "hasher.hpp"
+
+#include <iostream>
+#include <sys/eventfd.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+constexpr size_t C_BUFFER_SIZE = 1024;
+
+namespace hashd
+{
+
+ClientsHandler::ClientsHandler(uint16_t timeout)
+    : m_timeout(timeout), m_terminated(true), m_event_fd(eventfd(0, EFD_NONBLOCK))
+{}
+
+ClientsHandler::~ClientsHandler()
+{
+    if (m_thread.joinable()) {
+        m_thread.join();
+    }
+}
+
+ClientsHandler::ClientsHandler(ClientsHandler&& other)
+    : m_timeout(other.m_timeout),
+    m_terminated(other.m_terminated),
+    m_epoll_fd(std::move(other.m_epoll_fd)),
+    m_event_fd(std::move(other.m_event_fd)),
+    m_disconnected(std::move(other.m_disconnected)),
+    m_thread(std::move(other.m_thread)),
+    m_buffer(std::move(other.m_buffer))
+{}
+
+bool ClientsHandler::run()
+{
+    if (m_epoll_fd < 0 | m_event_fd < 0) {
+        std::cerr << "unable to create descriptor" << std::endl;
+        return false;
+    }
+
+    m_terminated = false;
+    m_thread = std::thread(&ClientsHandler::process_clients, this);
+    return true;
+}
+
+void ClientsHandler::terminate()
+{
+    m_terminated = true;
+}
+
+const EpollDescriptor& ClientsHandler::epoll_fd() const
+{
+    return m_epoll_fd;
+}
+
+const SocketDescriptor& ClientsHandler::event_fd() const
+{
+    return m_event_fd;
+}
+
+std::vector<int> ClientsHandler::disconnected()
+{
+    std::lock_guard lock(m_disconnected_mutex);
+    const auto res = m_disconnected;
+    m_disconnected.clear();
+    return res;
+}
+
+void ClientsHandler::process_clients()
+{
+    m_buffer.resize(C_BUFFER_SIZE);
+
+    while(!m_terminated) {
+        const auto fds = m_epoll_fd.wait(m_timeout);
+
+        for (const auto fd : fds) {
+            while (true) {
+                ssize_t count = read(fd, m_buffer.data(), C_BUFFER_SIZE);
+
+                if (count == -1) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        break;
+                    }
+
+                    std::cerr << "error while reading data" << std::endl;
+                    disconnect(fd);
+                    break;
+                }
+                else if (count == 0) {
+                    std::cout << "client disconnected" << std::endl;
+                    disconnect(fd);
+                    break;
+                }
+
+                const auto hash = Hasher(m_buffer, count).to_string();
+                count = send(fd, hash.data(), hash.size(), 0);
+
+                if (count != hash.size()) {
+                    std::cerr << "data send error, disconnecting client" << std::endl;
+                    disconnect(fd);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void ClientsHandler::disconnect(int fd)
+{
+    {
+        std::lock_guard lock(m_disconnected_mutex);
+        m_disconnected.push_back(fd);
+    }
+    uint64_t value = 1;
+    write(m_event_fd, &value, sizeof(value));
+}
+
+} // hashd
