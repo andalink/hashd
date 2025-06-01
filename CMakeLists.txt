@@ -11,6 +11,8 @@ add_executable(hashd main.cpp
     socket_descriptor.hpp socket_descriptor.cpp
     epoll_descriptor.hpp epoll_descriptor.cpp)
 
+install(TARGETS hashd DESTINATION ${CMAKE_SOURCE_DIR}/bin)
+
 find_package(OpenSSL REQUIRED)
 if(OPENSSL_FOUND)
   include_directories(${OPENSSL_INCLUDE_DIR})
