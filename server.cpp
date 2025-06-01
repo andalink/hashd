@@ -18,15 +18,15 @@ constexpr uint8_t C_WORKER_COUNT = 4;
 namespace hashd
 {
 
-void Server::run(uint16_t port)
+bool Server::run(uint16_t port, bool &terminate)
 {
     if (m_epoll_fd < 0 || m_server_fd < 0) {
         std::cerr << "unable to create descriptor" << std::endl;
-        return;
+        return false;
     }
 
     if (!m_server_fd.configure_server(port)) {
-        return;
+        return false;
     }
 
     m_epoll_fd.add_watching_fd(m_server_fd);
@@ -37,27 +37,28 @@ void Server::run(uint16_t port)
     for (auto& handler : m_workers) {
         if (!handler.run()) {
             std::cerr << "unable to run worker" << std::endl;
-            return;
+            return false;
         }
         m_epoll_fd.add_watching_fd(handler.event_fd());
     }
 
-    accept_clients();
+    accept_clients(terminate);
 
     for (auto& handler : m_workers) {
         handler.terminate();
     }
+
+    return true;
 }
 
-void Server::accept_clients() {
+void Server::accept_clients(bool& terminate) {
     std::multimap<size_t, size_t> clients_queue;
     for (size_t i = 0; i < m_workers.size(); ++i) {
         clients_queue.emplace(0u, i);
     }
 
-    while (true) {
+    while (!terminate) {
         const auto fds = m_epoll_fd.wait(C_POLL_TIMEOUT);
-
         for (const auto fd : fds) {
             if (fd == m_server_fd) {
                 SocketDescriptor client_fd(accept(m_server_fd, nullptr, nullptr));

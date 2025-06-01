@@ -15,10 +15,10 @@ namespace hashd
 class Server
 {
 public:
-    void run(uint16_t port);
+    bool run(uint16_t port, bool& terminate);
 
 private:
-    void accept_clients();
+    void accept_clients(bool& terminate);
 
     std::unordered_map<int, const SocketDescriptor> m_fds;
     std::vector<ClientsHandler> m_workers;

@@ -1,11 +1,23 @@
 #include "server.hpp"
 
-using namespace std;
+#include <csignal>
+
+static bool terminate = false;
+
+void sig_handler(int signal __attribute__((unused)))
+{
+    terminate = true;
+
+}
 
 int main()
 {
-    hashd::Server s;
-    s.run(11011);
+    std::signal(SIGINT, sig_handler);
+    std::signal(SIGTERM, sig_handler);
 
-    return 0;
+
+    hashd::Server s;
+    bool res = s.run(11011, terminate);
+
+    return res ? 0 : 1;
 }

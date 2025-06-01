@@ -62,7 +62,9 @@ std::vector<int> EpollDescriptor::wait(uint16_t timeout) const
     int count = epoll_wait(m_fd, events, C_MAX_EVENTS, timeout);
 
     if (count < 0) {
-        std::cerr << "error while polling socket" << std::endl;
+        if (errno != EINTR) {
+            std::cerr << "error while polling socket" << std::endl;
+        }
         return {};
     }
 
