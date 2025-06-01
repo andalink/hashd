@@ -7,16 +7,12 @@
 #include <thread>
 #include <unistd.h>
 
-namespace
-{
-
-constexpr uint16_t C_POLL_TIMEOUT = 500;
-constexpr uint8_t C_WORKER_COUNT = 4;
-
-} // unnamed
-
 namespace hashd
 {
+
+Server::Server(uint16_t timeout, uint8_t workers_count)
+    : m_timeout(timeout), m_workers_count(workers_count)
+{}
 
 bool Server::run(uint16_t port, bool &terminate)
 {
@@ -30,8 +26,8 @@ bool Server::run(uint16_t port, bool &terminate)
     }
 
     m_epoll_fd.add_watching_fd(m_server_fd);
-    for (uint8_t i = 0; i < C_WORKER_COUNT; ++i) {
-        m_workers.emplace_back(C_POLL_TIMEOUT);
+    for (uint8_t i = 0; i < m_workers_count; ++i) {
+        m_workers.emplace_back(m_timeout);
     }
 
     for (auto& handler : m_workers) {
@@ -58,14 +54,13 @@ void Server::accept_clients(bool& terminate) {
     }
 
     while (!terminate) {
-        const auto fds = m_epoll_fd.wait(C_POLL_TIMEOUT);
+        const auto fds = m_epoll_fd.wait(m_timeout);
         for (const auto fd : fds) {
             if (fd == m_server_fd) {
                 SocketDescriptor client_fd(accept(m_server_fd, nullptr, nullptr));
 
                 if(client_fd < 0) {
                     if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(C_POLL_TIMEOUT));
                         continue;
                     }
 
