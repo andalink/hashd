@@ -75,32 +75,48 @@ void ClientsHandler::process_clients()
         const auto fds = m_epoll_fd.wait(m_timeout);
 
         for (const auto fd : fds) {
-            while (true) {
-                ssize_t count = read(fd, m_buffer.data(), C_BUFFER_SIZE);
+            ssize_t count = read(fd, m_buffer.data(), m_buffer.size());
 
-                if (count == -1) {
-                    if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        break;
+            if (count == -1) {
+                if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                    continue;
+                }
+
+                std::cerr << "error while reading data" << std::endl;
+                disconnect(fd);
+                continue;
+            }
+            else if (count == 0) {
+                std::cout << "client disconnected" << std::endl;
+                disconnect(fd);
+                continue;
+            }
+
+            size_t readed = count;
+            while (true) {
+                if (readed == m_buffer.size()) {
+                    m_buffer.resize(m_buffer.size() * 2);
+                    count = read(fd, m_buffer.data() + readed, m_buffer.size() - readed);
+
+                    if (count > 0) {
+                        readed += count;
+                        continue;
                     }
 
-                    std::cerr << "error while reading data" << std::endl;
-                    disconnect(fd);
                     break;
                 }
-                else if (count == 0) {
-                    std::cout << "client disconnected" << std::endl;
-                    disconnect(fd);
+                else {
                     break;
                 }
+            }
 
-                const auto hash = Hasher(m_buffer, count).to_string();
-                count = send(fd, hash.data(), hash.size(), 0);
+            const auto hash = Hasher(m_buffer, readed).to_string();
+            count = send(fd, hash.data(), hash.size(), 0);
 
-                if (count != hash.size()) {
-                    std::cerr << "data send error, disconnecting client" << std::endl;
-                    disconnect(fd);
-                    break;
-                }
+            if (count != hash.size()) {
+                std::cerr << "data send error, disconnecting client" << std::endl;
+                disconnect(fd);
+                break;
             }
         }
     }
