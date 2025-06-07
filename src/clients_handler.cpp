@@ -12,7 +12,10 @@ namespace hashd
 {
 
 ClientsHandler::ClientsHandler(uint16_t timeout)
-    : m_timeout(timeout), m_terminated(true), m_event_fd(eventfd(0, EFD_NONBLOCK))
+    : m_timeout(timeout),
+    m_terminated(true),
+    m_event_fd(eventfd(0, EFD_NONBLOCK)),
+    m_buffer(C_BUFFER_SIZE)
 {}
 
 ClientsHandler::~ClientsHandler()
@@ -69,8 +72,6 @@ std::vector<int> ClientsHandler::disconnected()
 
 void ClientsHandler::process_clients()
 {
-    m_buffer.resize(C_BUFFER_SIZE);
-
     while(!m_terminated) {
         const auto fds = m_epoll_fd.wait(m_timeout);
 
@@ -92,25 +93,20 @@ void ClientsHandler::process_clients()
                 continue;
             }
 
-            size_t readed = count;
+            Hasher sha256_hash;
+            sha256_hash.update(m_buffer, count);
+
             while (true) {
-                if (readed == m_buffer.size()) {
-                    m_buffer.resize(m_buffer.size() * 2);
-                    count = read(fd, m_buffer.data() + readed, m_buffer.size() - readed);
+                count = read(fd, m_buffer.data(), m_buffer.size());
 
-                    if (count > 0) {
-                        readed += count;
-                        continue;
-                    }
-
+                if (count <= 0) {
                     break;
                 }
-                else {
-                    break;
-                }
+
+                sha256_hash.update(m_buffer, count);
             }
 
-            const auto hash = Hasher(m_buffer, readed).to_string();
+            const auto hash = sha256_hash.to_string();
             count = send(fd, hash.data(), hash.size(), 0);
 
             if (count != hash.size()) {
