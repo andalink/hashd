@@ -2,9 +2,25 @@
 
 #include <algorithm>
 #include <iostream>
-#include <map>
+#include <queue>
 #include <sys/socket.h>
 #include <unistd.h>
+
+namespace
+{
+
+using clients_queue_item = std::pair<size_t, size_t>;
+
+class ClientsQueueCompare {
+public:
+    bool operator()(const clients_queue_item& lhs, const clients_queue_item& rhs) const
+    {
+        return lhs.first < rhs.first;
+    }
+};
+
+} // unnamed
+
 
 namespace hashd
 {
@@ -51,7 +67,8 @@ bool Server::run(uint16_t port, const bool &terminate)
 
 void Server::accept_clients(const bool& terminate) {
     std::vector<SocketDescriptor> new_fds;
-    std::multimap<size_t, size_t> clients_queue;
+    std::priority_queue<clients_queue_item, std::vector<clients_queue_item>, ClientsQueueCompare> clients_queue;
+
     for (size_t i = 0; i < m_workers.size(); ++i) {
         clients_queue.emplace(0u, i);
     }
@@ -85,15 +102,15 @@ void Server::accept_clients(const bool& terminate) {
         }
 
         if (!new_fds.empty()) {
-            const auto item = clients_queue.begin();
-            auto& handler = m_workers[item->second];
+            const auto [count, worker_id] = clients_queue.top();
+            auto& handler = m_workers[worker_id];
 
             handler.push_new_clients(new_fds);
             constexpr uint64_t value = 1;
             write(handler.event_fd(), &value, sizeof(value));
 
-            clients_queue.erase(clients_queue.begin());
-            clients_queue.emplace(item->first + new_fds.size(), item->second);
+            clients_queue.pop();
+            clients_queue.emplace(handler.clients_count() + new_fds.size(), worker_id);
 
             new_fds.clear();
         }

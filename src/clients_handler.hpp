@@ -5,6 +5,7 @@
 #include "hasher.hpp"
 #include "socket_descriptor.hpp"
 
+#include <atomic>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -25,6 +26,7 @@ public:
     void terminate();
     const EpollDescriptor& epoll_fd() const;
     const SocketDescriptor& event_fd() const;
+    size_t clients_count() const;
     void push_new_clients(std::vector<SocketDescriptor>& fds);
 
 private:
@@ -45,6 +47,7 @@ private:
     std::unordered_map<SocketDescriptor, ClientContext> m_clients;
     EpollDescriptor m_epoll_fd;
     SocketDescriptor m_event_fd;
+    std::atomic<size_t> m_client_count;
     std::vector<SocketDescriptor> m_new_fds;
     std::mutex m_new_fds_mutex;
     std::thread m_thread;

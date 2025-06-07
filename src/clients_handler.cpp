@@ -13,6 +13,7 @@ namespace hashd
 
 ClientsHandler::ClientsHandler(uint16_t timeout)
     : m_event_fd(eventfd(0, EFD_NONBLOCK)),
+    m_client_count(0u),
     m_buffer(C_BUFFER_SIZE),
     m_timeout(timeout),
     m_terminated(true)
@@ -29,6 +30,7 @@ ClientsHandler::ClientsHandler(ClientsHandler&& other) noexcept
     : m_clients(std::move(other.m_clients)),
     m_epoll_fd(std::move(other.m_epoll_fd)),
     m_event_fd(std::move(other.m_event_fd)),
+    m_client_count(m_clients.size()),
     m_new_fds(std::move(other.m_new_fds)),
     m_thread(std::move(other.m_thread)),
     m_buffer(std::move(other.m_buffer)),
@@ -66,6 +68,11 @@ const EpollDescriptor& ClientsHandler::epoll_fd() const
 const SocketDescriptor& ClientsHandler::event_fd() const
 {
     return m_event_fd;
+}
+
+size_t ClientsHandler::clients_count() const
+{
+    return m_client_count.load(std::memory_order_acquire);
 }
 
 void ClientsHandler::push_new_clients(std::vector<SocketDescriptor>& fds)
@@ -148,6 +155,8 @@ void ClientsHandler::config_new_clients()
 
         m_clients.emplace(std::move(fd), ClientContext());
     }
+
+    m_client_count.store(m_clients.size(), std::memory_order_release);
 }
 
 void ClientsHandler::disconnect(int fd)
