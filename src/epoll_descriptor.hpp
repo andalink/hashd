@@ -1,7 +1,7 @@
 #ifndef EPOLL_DESCRIPTOR_HPP
 #define EPOLL_DESCRIPTOR_HPP
 
-#include <stdint.h>
+#include <cstdint>
 #include <vector>
 
 namespace hashd

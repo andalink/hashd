@@ -10,31 +10,35 @@ namespace hashd
 {
 
 SocketDescriptor::SocketDescriptor()
-    : m_fd(socket(AF_INET, SOCK_STREAM, 0))
+    : m_fd(socket(AF_INET, SOCK_STREAM, 0)),
+    m_inuse(true)
 {}
 
-SocketDescriptor::SocketDescriptor(int fd)
-    : m_fd(fd)
+SocketDescriptor::SocketDescriptor(int fd, bool inuse)
+    : m_fd(fd), m_inuse(inuse)
 {}
 
 SocketDescriptor::~SocketDescriptor()
 {
-    if (m_fd != -1) {
+    if (m_fd != -1 && m_inuse) {
         close(m_fd);
     }
 }
 
 SocketDescriptor::SocketDescriptor(SocketDescriptor&& other)
-    : m_fd(other)
+    : m_fd(other), m_inuse(other.m_inuse)
 {
     other.m_fd = -1;
+    other.m_inuse = false;
 }
 
 SocketDescriptor& SocketDescriptor::operator=(SocketDescriptor&& other)
 {
     if (this != &other) {
         m_fd = other.m_fd;
+        m_inuse = other.m_inuse;
         other.m_fd = -1;
+        other.m_inuse = false;
     }
     return *this;
 }
@@ -52,7 +56,7 @@ bool SocketDescriptor::configure_server(uint16_t port) const
         return false;
     }
 
-    struct sockaddr_in address;
+    struct sockaddr_in address = {};
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(port);
