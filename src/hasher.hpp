@@ -19,7 +19,7 @@ public:
     Hasher(Hasher&& other) noexcept;
     Hasher& operator=(Hasher&& other) noexcept;
 
-    void update(const std::vector<uint8_t>& data, size_t size);
+    void update(const uint8_t* data, size_t size);
     std::string to_string();
 
 private:

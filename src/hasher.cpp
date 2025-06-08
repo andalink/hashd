@@ -31,14 +31,18 @@ Hasher& Hasher::operator=(Hasher&& other) noexcept
     return *this;
 }
 
-void Hasher::update(const std::vector<uint8_t>& data, size_t size)
+void Hasher::update(const uint8_t* data, size_t size)
 {
+    if (size == 0) {
+        return;
+    }
+
     if (!m_context) {
         m_context = std::make_unique<Context>();
         SHA256_Init(&m_context->sha256);
     }
 
-    SHA256_Update(&m_context->sha256, data.data(), size);
+    SHA256_Update(&m_context->sha256, data, size);
 }
 
 std::string Hasher::to_string()

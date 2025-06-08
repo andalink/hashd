@@ -114,25 +114,32 @@ void ClientsHandler::process_clients()
             }
 
             auto& ctx = m_clients[fd];
-            ctx.m_hasher.update(m_buffer, count);
 
-            while (true) {
-                count = read(fd, m_buffer.data(), m_buffer.size());
+            while (count > 0) {
+                auto processed = m_buffer.begin();
+                for (auto it = m_buffer.begin(); it < m_buffer.begin() + count; ++it) {
+                    if (*it == '\n') {
+                        ctx.m_hasher.update(&*processed, std::distance(processed, it));
+                        const auto hash = ctx.m_hasher.to_string();
 
-                if (count <= 0) {
-                    break;
+                        if (!hash.empty()) {
+                            if (send(fd, hash.data(), hash.size(), 0) != hash.size()) {
+                                std::cerr << "data send error, disconnecting client" << std::endl;
+                                disconnect(fd);
+                                count = -1;
+                                break;
+                            }
+                        }
+
+                        processed = it + 1;
+                    }
                 }
 
-                ctx.m_hasher.update(m_buffer, count);
-            }
+                if (const size_t remains = count - std::distance(m_buffer.begin(), processed)) {
+                    ctx.m_hasher.update(&*processed, remains);
+                }
 
-            const auto hash = ctx.m_hasher.to_string();
-            count = send(fd, hash.data(), hash.size(), 0);
-
-            if (count != hash.size()) {
-                std::cerr << "data send error, disconnecting client" << std::endl;
-                disconnect(fd);
-                break;
+                count = read(fd, m_buffer.data(), m_buffer.size());
             }
         }
     }
