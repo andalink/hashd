@@ -7,5 +7,5 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/local/bin
-COPY bin/hashd /usr/local/bin
+COPY install/bin/ /usr/local/bin/
 CMD ["hashd"]
