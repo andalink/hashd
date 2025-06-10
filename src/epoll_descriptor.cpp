@@ -18,15 +18,19 @@ EpollDescriptor::~EpollDescriptor()
     }
 }
 
-EpollDescriptor::EpollDescriptor(EpollDescriptor&& other)
+EpollDescriptor::EpollDescriptor(EpollDescriptor&& other) noexcept
     : m_fd(other)
 {
     other.m_fd = -1;
 }
 
-EpollDescriptor& EpollDescriptor::operator=(EpollDescriptor&& other)
+EpollDescriptor& EpollDescriptor::operator=(EpollDescriptor&& other) noexcept
 {
     if (this != &other) {
+        if (m_fd != -1) {
+            close(m_fd);
+        }
+
         m_fd = other.m_fd;
         other.m_fd = -1;
     }

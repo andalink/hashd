@@ -15,7 +15,12 @@ Hasher::Hasher()
     : m_hash(SHA256_DIGEST_LENGTH)
 {}
 
-Hasher::~Hasher() = default;
+Hasher::~Hasher()
+{
+    if (m_context) {
+        SHA256_Final(m_hash.data(), &m_context->sha256);
+    }
+}
 
 Hasher::Hasher(Hasher&& other) noexcept
     : m_hash(std::move(other.m_hash)),
@@ -25,6 +30,10 @@ Hasher::Hasher(Hasher&& other) noexcept
 Hasher& Hasher::operator=(Hasher&& other) noexcept
 {
     if (this != &other) {
+        if (m_context) {
+            SHA256_Final(m_hash.data(), &m_context->sha256);
+        }
+
         m_hash = std::move(other.m_hash);
         m_context = std::move(other.m_context);
     }
@@ -51,7 +60,7 @@ std::string Hasher::to_string()
         return {};
     }
 
-    auto ctx = m_context.release();
+    const auto ctx = m_context.release();
     SHA256_Final(m_hash.data(), &ctx->sha256);
     delete ctx;
 

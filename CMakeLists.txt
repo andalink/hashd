@@ -46,7 +46,9 @@ if (ENABLE_TESTS)
     endif()
 
     add_executable(hashd_test
-        src/tests/hashd_tests.cpp
+        src/tests/server_tests.cpp
+        src/tests/hasher_tests.cpp
+        src/tests/socket_descriptor_tests.cpp
         ${SOURCE_FILES})
     target_link_libraries(hashd_test OpenSSL::SSL OpenSSL::Crypto gtest gtest_main)
 

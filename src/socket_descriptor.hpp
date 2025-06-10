@@ -16,8 +16,8 @@ public:
     ~SocketDescriptor();
     SocketDescriptor(const SocketDescriptor&) = delete;
     SocketDescriptor& operator=(const SocketDescriptor&) = delete;
-    SocketDescriptor(SocketDescriptor&& other);
-    SocketDescriptor& operator=(SocketDescriptor&& other);
+    SocketDescriptor(SocketDescriptor&& other) noexcept;
+    SocketDescriptor& operator=(SocketDescriptor&& other) noexcept;
 
     bool configure_server(uint16_t port) const;
     bool set_non_blocking() const;

@@ -25,16 +25,20 @@ SocketDescriptor::~SocketDescriptor()
     }
 }
 
-SocketDescriptor::SocketDescriptor(SocketDescriptor&& other)
+SocketDescriptor::SocketDescriptor(SocketDescriptor&& other) noexcept
     : m_fd(other), m_inuse(other.m_inuse)
 {
     other.m_fd = -1;
     other.m_inuse = false;
 }
 
-SocketDescriptor& SocketDescriptor::operator=(SocketDescriptor&& other)
+SocketDescriptor& SocketDescriptor::operator=(SocketDescriptor&& other) noexcept
 {
     if (this != &other) {
+        if (m_fd != -1 && m_inuse) {
+            close(m_fd);
+        }
+
         m_fd = other.m_fd;
         m_inuse = other.m_inuse;
         other.m_fd = -1;

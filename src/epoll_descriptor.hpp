@@ -16,8 +16,8 @@ public:
     ~EpollDescriptor();
     EpollDescriptor(const EpollDescriptor&) = delete;
     EpollDescriptor& operator=(const EpollDescriptor&) = delete;
-    EpollDescriptor(EpollDescriptor&& other);
-    EpollDescriptor& operator=(EpollDescriptor&& other);
+    EpollDescriptor(EpollDescriptor&& other) noexcept;
+    EpollDescriptor& operator=(EpollDescriptor&& other) noexcept;
 
     bool add_watching_fd(int fd) const;
     bool remove_watching_fd(int fd) const;
